@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Excel 行合并工具（浏览器版）</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; }
+    input, button, label { margin: 10px 0; display: block; width: 100%; }
+    .options { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h2>Excel 行合并工具（两两合并）</h2>
+  <input type="file" id="fileInput" accept=".xlsx" />
+  
+  <div class="options">
+    <label><input type="checkbox" id="hasHeader" checked /> 包含表头</label>
+    <label>从第 <input type="number" id="startRow" value="2" min="1" style="width:60px"> 行开始</label>
+  </div>
+
+  <button id="processBtn">开始合并</button>
+  <p id="status"></p>
+
+  <!-- 引入 SheetJS -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <script>
+    document.getElementById('processBtn').addEventListener('click', async () => {
+      const fileInput = document.getElementById('fileInput');
+      const hasHeader = document.getElementById('hasHeader').checked;
+      const startRow = parseInt(document.getElementById('startRow').value);
+      const status = document.getElementById('status');
+
+      if (!fileInput.files[0]) {
+        alert('请选择一个 Excel 文件！');
+        return;
+      }
+
+      try {
+        status.textContent = '正在处理...';
+        const file = fileInput.files[0];
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // 转为二维数组（含表头）
+        const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (rawData.length === 0) throw new Error('工作表为空');
+
+        let outputData = [];
+
+        if (hasHeader) {
+          outputData.push(rawData[0]); // 保留表头
+        }
+
+        // 确定实际起始行索引（JS 数组从 0 开始）
+        let actualStart = hasHeader ? Math.max(1, startRow - 1) : startRow - 1;
+        const rows = rawData.slice(actualStart);
+
+        // 两两合并
+        for (let i = 0; i < rows.length; i += 2) {
+          const row1 = rows[i] || [];
+          const row2 = rows[i + 1] || [];
+          const mergedRow = [];
+
+          const maxLen = Math.max(row1.length, row2.length);
+          for (let j = 0; j < maxLen; j++) {
+            const cell1 = row1[j];
+            const cell2 = row2[j];
+
+            if (cell1 !== undefined && cell1 !== null && cell1 !== '') {
+              mergedRow.push(cell1);
+            } else if (cell2 !== undefined && cell2 !== null && cell2 !== '') {
+              mergedRow.push(cell2);
+            } else {
+              mergedRow.push('');
+            }
+          }
+          outputData.push(mergedRow);
+        }
+
+        // 生成新工作表
+        const newWorksheet = XLSX.utils.aoa_to_sheet(outputData);
+        const newWorkbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, '合并结果');
+
+        // 下载文件
+        XLSX.writeFile(newWorkbook, file.name.replace(/\.xlsx?$/i, '_merged.xlsx'));
+        status.textContent = '✅ 合并完成！文件已下载。';
+      } catch (e) {
+        console.error(e);
+        status.textContent = '❌ 错误: ' + e.message;
+      }
+    });
+  </script>
+</body>
+</html>
