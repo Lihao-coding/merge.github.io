@@ -1,64 +1,212 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Excel 行合并工具（浏览器版）</title>
+  <title>Excel 行合并工具</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; }
-    input, button, label { margin: 10px 0; display: block; width: 100%; }
-    .options { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4edf9 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 520px;
+      padding: 32px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 24px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #34495e;
+      font-weight: 500;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: border-color 0.3s;
+    }
+
+    input[type="file"]:hover {
+      border-color: #a0aec0;
+    }
+
+    .options {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      border: 1px solid #edf2f7;
+    }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .option-row:last-child {
+      margin-bottom: 0;
+    }
+
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      cursor: pointer;
+    }
+
+    input[type="number"] {
+      width: 80px;
+      padding: 6px 10px;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #4299e1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+    }
+
+    button:hover {
+      background: #3182ce;
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    #status {
+      margin-top: 16px;
+      min-height: 24px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .success { color: #38a169; }
+    .error { color: #e53e3e; }
+
+    footer {
+      text-align: center;
+      margin-top: 20px;
+      color: #718096;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
-  <h2>Excel 行合并工具（两两合并）</h2>
-  <input type="file" id="fileInput" accept=".xlsx" />
-  
-  <div class="options">
-    <label><input type="checkbox" id="hasHeader" checked /> 包含表头</label>
-    <label>从第 <input type="number" id="startRow" value="2" min="1" style="width:60px"> 行开始</label>
+  <div class="card">
+    <h1>Excel 行合并工具</h1>
+
+    <div class="input-group">
+      <label for="fileInput">📎 选择 Excel 文件 (.xlsx)</label>
+      <input type="file" id="fileInput" accept=".xlsx" />
+    </div>
+
+    <div class="options">
+      <div class="option-row">
+        <input type="checkbox" id="hasHeader" checked />
+        <label for="hasHeader" style="margin: 0;">包含表头</label>
+      </div>
+      <div class="option-row">
+        <label for="startRow" style="margin: 0;">从第</label>
+        <input type="number" id="startRow" value="2" min="1" />
+        <label for="startRow" style="margin: 0;">行开始处理</label>
+      </div>
+    </div>
+
+    <button id="processBtn">🚀 开始合并</button>
+    <div id="status"></div>
+
+    <footer>
+      所有文件在浏览器中处理，不会上传到任何服务器。
+    </footer>
   </div>
 
-  <button id="processBtn">开始合并</button>
-  <p id="status"></p>
-
-  <!-- 引入 SheetJS -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <script>
     document.getElementById('processBtn').addEventListener('click', async () => {
       const fileInput = document.getElementById('fileInput');
       const hasHeader = document.getElementById('hasHeader').checked;
       const startRow = parseInt(document.getElementById('startRow').value);
-      const status = document.getElementById('status');
+      const statusEl = document.getElementById('status');
 
       if (!fileInput.files[0]) {
-        alert('请选择一个 Excel 文件！');
+        statusEl.className = 'error';
+        statusEl.textContent = '⚠️ 请先选择一个 Excel 文件！';
+        return;
+      }
+
+      if (isNaN(startRow) || startRow < 1) {
+        statusEl.className = 'error';
+        statusEl.textContent = '⚠️ 起始行号必须 ≥ 1！';
         return;
       }
 
       try {
-        status.textContent = '正在处理...';
+        statusEl.className = '';
+        statusEl.textContent = '⏳ 正在处理，请稍候...';
+
         const file = fileInput.files[0];
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        // 转为二维数组（含表头）
         const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         if (rawData.length === 0) throw new Error('工作表为空');
 
         let outputData = [];
 
         if (hasHeader) {
-          outputData.push(rawData[0]); // 保留表头
+          outputData.push(rawData[0]);
         }
 
-        // 确定实际起始行索引（JS 数组从 0 开始）
         let actualStart = hasHeader ? Math.max(1, startRow - 1) : startRow - 1;
         const rows = rawData.slice(actualStart);
 
-        // 两两合并
         for (let i = 0; i < rows.length; i += 2) {
           const row1 = rows[i] || [];
           const row2 = rows[i + 1] || [];
@@ -80,17 +228,19 @@
           outputData.push(mergedRow);
         }
 
-        // 生成新工作表
         const newWorksheet = XLSX.utils.aoa_to_sheet(outputData);
         const newWorkbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, '合并结果');
 
-        // 下载文件
-        XLSX.writeFile(newWorkbook, file.name.replace(/\.xlsx?$/i, '_merged.xlsx'));
-        status.textContent = '✅ 合并完成！文件已下载。';
+        const outputName = file.name.replace(/\.xlsx?$/i, '_merged.xlsx');
+        XLSX.writeFile(newWorkbook, outputName);
+
+        statusEl.className = 'success';
+        statusEl.textContent = '✅ 合并完成！文件已下载。';
       } catch (e) {
         console.error(e);
-        status.textContent = '❌ 错误: ' + e.message;
+        statusEl.className = 'error';
+        statusEl.textContent = '❌ 处理失败：' + (e.message || '未知错误');
       }
     });
   </script>
